@@ -6,12 +6,12 @@ Functions:
 - load_depth_data_sets: Loads depth data sets from a list of binary files.
 - load_depth_data_frames: Loads depth data frames from a binary file.
 - create_gif_from_frames: Creates a GIF from a sequence of frames and saves it to a specified file.
+- get_absolute_path_and_mkdirs: Ensures the directory for a given file path exists and returns the absolute path.
 
 Constants:
 - DEFAULT_FRAME_WIDTH: The default width of each frame.
 - DEFAULT_FRAME_HEIGHT: The default height of each frame.
 - DATA_DIR_NAME: The name of the directory containing the input data files.
-- OUTPUT_DIR_NAME: The name of the directory where output files will be saved.
 
 Dependencies:
 - os: Provides a way of using operating system dependent functionality.
@@ -32,7 +32,6 @@ from typing import List
 DEFAULT_FRAME_WIDTH = 80
 DEFAULT_FRAME_HEIGHT = 60
 DATA_DIR_NAME = "Messdaten"
-OUTPUT_DIR_NAME = "output"
 
 
 def load_input_file_paths(input_data_dir: str = DATA_DIR_NAME) -> List[str]:
@@ -152,25 +151,31 @@ def load_depth_data_frames(
     if data.size % (width * height) != 0:
         raise ValueError(f"Incorrect frame size {width} x {height}")
 
-    # print(f"Data set contains {data.size // (width * height)} frames")
-
     return data.reshape(-1, height, width)
 
 
-def create_gif_from_frames(frames: np.array, file_name: str):
+# TODO: find the correct vmax
+def create_gif_from_frames(
+    frames: np.array, output_path: str, vmin=0, vmax=3321
+) -> str:
     """
-    Creates a GIF from a sequence of frames and saves it to a specified file.
+    Creates a GIF from a sequence of frames and saves it to the specified output path.
+    Parameters:
     Args:
-        frames (np.array): A numpy array containing the frames to be converted into a GIF.
-                           The array should have a shape of (num_frames, height, width).
-        file_name (str): The name of the output GIF file.
+        frames (np.array): A numpy array of frames where each frame is a 2D array representing an image.
+        output_path (str): The path where the resulting GIF will be saved.
+        vmin (int, optional): The minimum data value that corresponds to colormap "hot". Default is 0.
+        vmax (int, optional): The maximum data value that corresponds to colormap "hot". Default is 3321.
     Returns:
-        None
+        str: The absolute path to the saved GIF file.
     Raises:
-        ValueError: If the frames array is empty or has an invalid shape.
-    Example:
-        frames = np.random.rand(10, 100, 100) * 3321
-        create_gif_from_frames(frames, "output.gif")
+        ValueError: If the provided frames do not contain any data.
+        IOError: If there is an error while saving the GIF file.
+    Notes:
+    - The function uses the "hot" colormap for visualizing the frames.
+    - The function ensures that the output directory exists before saving the GIF.
+    - The duration of each frame in the GIF is set to 200 milliseconds.
+    - The GIF is set to loop indefinitely.
     """
     if frames.shape[0] == 0:
         raise ValueError("The provided frames do not contain any data")
@@ -178,8 +183,7 @@ def create_gif_from_frames(frames: np.array, file_name: str):
     image_frames = []
 
     for i in range(frames.shape[0]):
-        # TODO: find the correct vmax
-        plt.imshow(frames[i], cmap="hot", interpolation="nearest", vmin=0, vmax=3321)
+        plt.imshow(frames[i], cmap="hot", interpolation="nearest", vmin=vmin, vmax=vmax)
         plt.axis("off")
 
         plt.tight_layout()
@@ -192,12 +196,7 @@ def create_gif_from_frames(frames: np.array, file_name: str):
 
         plt.clf()
 
-    output_dir = os.path.join(os.path.abspath(OUTPUT_DIR_NAME), "gifs")
-
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
-    output_path = os.path.join(output_dir, file_name)
+    output_path = get_absolute_path_and_mkdirs(output_path)
 
     try:
         image_frames[0].save(
@@ -205,10 +204,63 @@ def create_gif_from_frames(frames: np.array, file_name: str):
             format="GIF",
             append_images=image_frames[1:],
             save_all=True,
-            duration=200,
+            duration=100,
             loop=0,
             optimize=True,
         )
+
+        return output_path
     except IOError as e:
-        print(f"There was an error while saving {file_name}:")
+        print(f"There was an error while saving {output_path}:")
         print(e)
+
+
+def get_absolute_path_and_mkdirs(file_path):
+    if not os.path.isabs(file_path):
+        file_path = os.path.abspath(file_path)
+
+    file_dir = os.path.dirname(file_path)
+
+    if not os.path.exists(file_dir):
+        os.makedirs(file_dir)
+
+    return file_path
+
+
+## TODO: error handling
+def add_text_to_gif(file_path: str):
+    print("asdf")
+    from PIL import Image, ImageDraw, ImageFont
+
+    with Image.open(file_path) as img:
+        frames_with_text = []
+
+        for frame in range(img.n_frames):
+            img.seek(frame)
+            frame_copy = img.copy().convert("RGBA")
+
+            draw = ImageDraw.Draw(frame_copy)
+            text = f"Frame {frame + 1}"
+            font = ImageFont.load_default()
+
+            text_bbox = draw.textbbox((0, 0), text, font=font)
+            text_width, text_height = (
+                text_bbox[2] - text_bbox[0],
+                text_bbox[3] - text_bbox[1],
+            )
+
+            text_position = (
+                (frame_copy.width - text_width) // 2,
+                frame_copy.height - text_height - 10,
+            )
+            draw.text(text_position, text, font=font, fill="black")
+
+            frames_with_text.append(frame_copy)
+
+        frames_with_text[0].save(
+            file_path,
+            save_all=True,
+            append_images=frames_with_text[1:],
+            duration=100,
+            loop=0,
+        )
