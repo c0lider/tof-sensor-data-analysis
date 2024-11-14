@@ -24,7 +24,8 @@ Dependencies:
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from PIL import Image
+
+from PIL import Image, ImageDraw, ImageFont
 
 from typing import List
 
@@ -154,18 +155,13 @@ def load_depth_data_frames(
     return data.reshape(-1, height, width)
 
 
-# TODO: find the correct vmax
-def create_gif_from_frames(
-    frames: np.array, output_path: str, vmin=0, vmax=3321
-) -> str:
+def create_gif_from_frames(frames: np.array, output_path: str) -> str:
     """
     Creates a GIF from a sequence of frames and saves it to the specified output path.
     Parameters:
     Args:
         frames (np.array): A numpy array of frames where each frame is a 2D array representing an image.
         output_path (str): The path where the resulting GIF will be saved.
-        vmin (int, optional): The minimum data value that corresponds to colormap "hot". Default is 0.
-        vmax (int, optional): The maximum data value that corresponds to colormap "hot". Default is 3321.
     Returns:
         str: The absolute path to the saved GIF file.
     Raises:
@@ -181,6 +177,9 @@ def create_gif_from_frames(
         raise ValueError("The provided frames do not contain any data")
 
     image_frames = []
+
+    vmin = np.min(frames)
+    vmax = np.max(frames)
 
     for i in range(frames.shape[0]):
         plt.imshow(frames[i], cmap="hot", interpolation="nearest", vmin=vmin, vmax=vmax)
@@ -215,7 +214,22 @@ def create_gif_from_frames(
         print(e)
 
 
-def get_absolute_path_and_mkdirs(file_path):
+def get_absolute_path_and_mkdirs(file_path: str) -> str:
+    """
+    Converts a relative file path to an absolute path and creates any necessary directories.
+
+    This function takes a file path as input and performs the following steps:
+    1. Checks if the provided file path is an absolute path. If not, it converts it to an absolute path.
+    2. Extracts the directory part of the file path.
+    3. Checks if the directory exists. If it does not exist, it creates the directory (including any necessary parent directories).
+
+    Args:
+        file_path (str): The file path to be converted and checked.
+
+    Returns:
+        str: The absolute file path.
+    """
+
     if not os.path.isabs(file_path):
         file_path = os.path.abspath(file_path)
 
@@ -227,36 +241,54 @@ def get_absolute_path_and_mkdirs(file_path):
     return file_path
 
 
-## TODO: error handling
-def add_text_to_gif(file_path: str):
-    print("asdf")
-    from PIL import Image, ImageDraw, ImageFont
+def add_text_to_gif(file_path: str, caption_per_frame: List[str] | str) -> None:
+    """
+    Adds text captions to each frame of a GIF file.
+    Parameters:
+        file_path (str): The path to the GIF file to which text will be added.
+        caption_per_frame (List[str] | str): A list of captions for each frame or a single string to be used as a caption for all frames.
+    Returns:
+        None
+    Notes:
+    - If `caption_per_frame` is a string, the same caption will be added to all frames.
+    - If `caption_per_frame` is a list, each caption will be added to the corresponding frame.
+    - The function prints an error message if the number of frames in the GIF does not match the number of captions provided.
+    """
 
-    with Image.open(file_path) as img:
-        frames_with_text = []
+    try:
+        with Image.open(file_path) as img:
+            simple_caption = False
 
-        for frame in range(img.n_frames):
-            img.seek(frame)
-            frame_copy = img.copy().convert("RGBA")
+            # if caption_per_frame is a string => display it on all frames
+            if isinstance(caption_per_frame, str):
+                simple_caption = True
+            elif img.n_frames + 1 != len(caption_per_frame):
+                print(
+                    f"The amount of frames {img.n_frames} does not match the amount of captions {len(caption_per_frame)} provided. Caption was not added"
+                )
+                return
 
-            draw = ImageDraw.Draw(frame_copy)
-            text = f"Frame {frame + 1}"
-            font = ImageFont.load_default()
+            frames_with_text = []
 
-            text_bbox = draw.textbbox((0, 0), text, font=font)
-            text_width, text_height = (
-                text_bbox[2] - text_bbox[0],
-                text_bbox[3] - text_bbox[1],
-            )
+            for frame_no in range(img.n_frames):
+                img.seek(frame_no)
+                frame_copy = img.copy().convert("RGBA")
+                draw = ImageDraw.Draw(frame_copy)
 
-            text_position = (
-                (frame_copy.width - text_width) // 2,
-                frame_copy.height - text_height - 10,
-            )
-            draw.text(text_position, text, font=font, fill="black")
+                if simple_caption:
+                    text = caption_per_frame
+                else:
+                    text = caption_per_frame[frame_no]
+                font = ImageFont.load_default()
 
-            frames_with_text.append(frame_copy)
+                draw.text((10, 10), text, font=font, fill="black")
 
+                frames_with_text.append(frame_copy)
+
+    except FileNotFoundError:
+        print("The specified file does not exist.")
+
+    try:
         frames_with_text[0].save(
             file_path,
             save_all=True,
@@ -264,3 +296,5 @@ def add_text_to_gif(file_path: str):
             duration=100,
             loop=0,
         )
+    except OSError as e:
+        print("Could not save file: ", e)
