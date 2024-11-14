@@ -33,6 +33,8 @@ from typing import List
 DEFAULT_FRAME_WIDTH = 80
 DEFAULT_FRAME_HEIGHT = 60
 DATA_DIR_NAME = "Messdaten"
+DEFAULT_POINT_RADIUS = 10
+SCALING_FACTOR = 8
 
 
 def load_input_file_paths(input_data_dir: str = DATA_DIR_NAME) -> List[str]:
@@ -254,15 +256,15 @@ def add_text_to_gif(file_path: str, caption_per_frame: List[str] | str) -> None:
     - If `caption_per_frame` is a list, each caption will be added to the corresponding frame.
     - The function prints an error message if the number of frames in the GIF does not match the number of captions provided.
     """
-
     try:
         with Image.open(file_path) as img:
             simple_caption = False
 
-            # if caption_per_frame is a string => display it on all frames
+            # caption_per_frame is a string => display it on all frames
             if isinstance(caption_per_frame, str):
                 simple_caption = True
-            elif img.n_frames + 1 != len(caption_per_frame):
+            # TODO: check indices
+            elif abs(img.n_frames - len(caption_per_frame)) > 1:
                 print(
                     f"The amount of frames {img.n_frames} does not match the amount of captions {len(caption_per_frame)} provided. Caption was not added"
                 )
@@ -293,6 +295,69 @@ def add_text_to_gif(file_path: str, caption_per_frame: List[str] | str) -> None:
             file_path,
             save_all=True,
             append_images=frames_with_text[1:],
+            duration=100,
+            loop=0,
+        )
+    except OSError as e:
+        print("Could not save file: ", e)
+
+
+def add_points_to_gif(
+    file_path: str, points: List[int], point_radius: int = DEFAULT_POINT_RADIUS
+):
+    """
+    Adds points to each frame of a GIF image and saves the modified GIF.
+    Parameters:
+        file_path (str): The path to the GIF file.
+        points (List[int]): A list of points to be added to each frame. Each element in the list should be a list of tuples,
+                            where each tuple represents the (x, y) coordinates of a point.
+        point_radius (int, optional): The radius of the points to be drawn. Defaults to DEFAULT_POINT_RADIUS.
+    Returns:
+        None
+    Notes:
+        - The function checks if the number of frames in the GIF matches the number of point data provided. If they do not match,
+        the function prints a message and does not add the points.
+        - The points are scaled by a SCALING_FACTOR before being drawn on the frames.
+        - The modified GIF is saved with a duration of 100ms per frame and loops indefinitely.
+    """
+    try:
+        with Image.open(file_path) as img:
+            # TODO: check indices
+            if abs(img.n_frames - len(points)) > 1:
+                print(
+                    f"The amount of frames {img.n_frames} does not match the amount of point data {len(points)} provided. Points were not added"
+                )
+                return
+
+            frames_with_points = []
+
+            for frame_no in range(img.n_frames):
+                img.seek(frame_no)
+                frame_copy = img.copy().convert("RGBA")
+                draw = ImageDraw.Draw(frame_copy)
+
+                for person in points[frame_no]:
+                    draw.ellipse(
+                        (
+                            person[0] * SCALING_FACTOR - point_radius,
+                            person[1] * SCALING_FACTOR - point_radius,
+                            person[0] * SCALING_FACTOR + point_radius,
+                            person[1] * SCALING_FACTOR + point_radius,
+                        ),
+                        fill="red",
+                        outline="black",
+                    )
+
+                frames_with_points.append(frame_copy)
+
+    except FileNotFoundError:
+        print("The specified file does not exist.")
+
+    try:
+        frames_with_points[0].save(
+            file_path,
+            save_all=True,
+            append_images=frames_with_points[1:],
             duration=100,
             loop=0,
         )
