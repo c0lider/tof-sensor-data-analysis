@@ -243,21 +243,24 @@ def get_absolute_path_and_mkdirs(file_path: str) -> str:
     return file_path
 
 
-def add_text_to_gif(file_path: str, caption_per_frame: List[str] | str) -> None:
+def add_text_to_gif(
+    source_path: str, caption_per_frame: List[str] | str, target_path: str = ""
+) -> str:
     """
     Adds text captions to each frame of a GIF file.
     Parameters:
-        file_path (str): The path to the GIF file to which text will be added.
+        source_path (str): The path to the GIF file to which text will be added.
         caption_per_frame (List[str] | str): A list of captions for each frame or a single string to be used as a caption for all frames.
+        target_path (str, optional): The path to save the modified GIF. If not provided, the original GIF will be overwritten.
     Returns:
-        None
+        str: The path to the saved GIF file. If the file could not be saved, returns None.
     Notes:
     - If `caption_per_frame` is a string, the same caption will be added to all frames.
     - If `caption_per_frame` is a list, each caption will be added to the corresponding frame.
     - The function prints an error message if the number of frames in the GIF does not match the number of captions provided.
     """
     try:
-        with Image.open(file_path) as img:
+        with Image.open(source_path) as img:
             simple_caption = False
 
             # caption_per_frame is a string => display it on all frames
@@ -290,30 +293,41 @@ def add_text_to_gif(file_path: str, caption_per_frame: List[str] | str) -> None:
     except FileNotFoundError:
         print("The specified file does not exist.")
 
+    if target_path:
+        save_path = target_path
+    else:
+        save_path = source_path
+
     try:
         frames_with_text[0].save(
-            file_path,
+            save_path,
             save_all=True,
             append_images=frames_with_text[1:],
             duration=100,
             loop=0,
         )
+        return save_path
     except OSError as e:
         print("Could not save file: ", e)
+        return None
 
 
 def add_points_to_gif(
-    file_path: str, points: List[int], point_radius: int = DEFAULT_POINT_RADIUS
-):
+    source_path: str,
+    points: List[int],
+    point_radius: int = DEFAULT_POINT_RADIUS,
+    target_path: str = "",
+) -> str:
     """
     Adds points to each frame of a GIF image and saves the modified GIF.
     Parameters:
-        file_path (str): The path to the GIF file.
+        source_path (str): The path to the original GIF file.
         points (List[int]): A list of points to be added to each frame. Each element in the list should be a list of tuples,
                             where each tuple represents the (x, y) coordinates of a point.
         point_radius (int, optional): The radius of the points to be drawn. Defaults to DEFAULT_POINT_RADIUS.
+        target_path(str, optional): The path to save the modified GIF. If not provided, the original GIF will be overwritten.
     Returns:
-        None
+        str: The path to the saved GIF file. If the file could not be saved, returns None.
     Notes:
         - The function checks if the number of frames in the GIF matches the number of point data provided. If they do not match,
         the function prints a message and does not add the points.
@@ -321,7 +335,7 @@ def add_points_to_gif(
         - The modified GIF is saved with a duration of 100ms per frame and loops indefinitely.
     """
     try:
-        with Image.open(file_path) as img:
+        with Image.open(source_path) as img:
             # TODO: check indices
             if abs(img.n_frames - len(points)) > 1:
                 print(
@@ -353,13 +367,20 @@ def add_points_to_gif(
     except FileNotFoundError:
         print("The specified file does not exist.")
 
+    if target_path:
+        save_path = target_path
+    else:
+        save_path = source_path
+
     try:
         frames_with_points[0].save(
-            file_path,
+            save_path,
             save_all=True,
             append_images=frames_with_points[1:],
             duration=100,
             loop=0,
         )
+        return save_path
     except OSError as e:
         print("Could not save file: ", e)
+        return None

@@ -31,7 +31,10 @@ def count_people(mask: np.array, person_size=PERSON_SIZE) -> int:
 
 
 def count_and_track_people_direction(
-    previous_frame: np.array, current_frame: np.array, person_size=PERSON_SIZE
+    previous_frame: np.array,
+    current_frame: np.array,
+    person_size=PERSON_SIZE,
+    movement_threshold: int = MOVEMENT_THRESHOLD,
 ):
     """
     Analyzes two consecutive frames to count and track the direction of people movement.
@@ -42,6 +45,7 @@ def count_and_track_people_direction(
         previous_frame (np.array): The previous frame containing binary mask data.
         current_frame (np.array): The current frame containing binary mask data.
         person_size (int): The minimum contour area to be considered as a person. Default is PERSON_SIZE.
+        movement_threshold(int): The minimum amount of change in movement which is neccessary in order to detect a movement
     Returns:
         list of tuples: Each tuple contains:
             - start point (tuple): The centroid of the person in the previous frame.
@@ -82,7 +86,8 @@ def count_and_track_people_direction(
     for prev in prev_points:
         # ensure there are points in the current frame
         if not curr_points:
-            directions.append((prev, None, (0, 0)))
+            directions.append((prev, None, "none"))
+            print("NONE")
             continue
 
         # find the closest current point to estimate movement
@@ -92,7 +97,7 @@ def count_and_track_people_direction(
         movement_vector = (closest_curr[0] - prev[0], closest_curr[1] - prev[1])
 
         # convert movement vector to string
-        if abs(movement_vector[1]) > MOVEMENT_THRESHOLD:
+        if abs(movement_vector[1]) > movement_threshold:
             direction_str = "up" if movement_vector[1] < 0 else "down"
         else:
             direction_str = "none"
