@@ -87,7 +87,6 @@ def count_and_track_people_direction(
         # ensure there are points in the current frame
         if not curr_points:
             directions.append((prev, None, "none"))
-            print("NONE")
             continue
 
         # find the closest current point to estimate movement
